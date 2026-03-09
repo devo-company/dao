@@ -1,0 +1,56 @@
+# Render Blueprint for Paperclip
+# Add this file to the root of your devo-company/paperclip fork
+# Then: Render Dashboard → New → Blueprint → select this repo
+#
+# This provisions:
+#   - Web service (API + UI + heartbeat scheduler)
+#   - Managed PostgreSQL database
+#   - Persistent disk for secrets and file storage
+
+services:
+  - type: web
+    name: paperclip-server
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: standard
+    region: frankfurt
+    disk:
+      name: paperclip-data
+      mountPath: /paperclip
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: paperclip-db
+          property: connectionString
+      - key: HOST
+        value: "0.0.0.0"
+      - key: PORT
+        value: "3100"
+      - key: SERVE_UI
+        value: "true"
+      - key: NODE_ENV
+        value: production
+      - key: PAPERCLIP_HOME
+        value: /paperclip
+      - key: PAPERCLIP_DEPLOYMENT_MODE
+        value: authenticated
+      - key: PAPERCLIP_DEPLOYMENT_EXPOSURE
+        value: private
+      - key: PAPERCLIP_PUBLIC_URL
+        value: https://paperclip-server.onrender.com
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: PAPERCLIP_SECRETS_MASTER_KEY
+        generateValue: true
+      - key: PAPERCLIP_SECRETS_STRICT_MODE
+        value: "true"
+      - key: PAPERCLIP_AUTH_DISABLE_SIGN_UP
+        value: "false"
+
+databases:
+  - name: paperclip-db
+    plan: starter
+    databaseName: paperclip
+    user: paperclip
+    region: frankfurt
