@@ -50,7 +50,8 @@ services:
 
 databases:
   - name: paperclip-db
-    plan: starter
+    plan: basic-256mb
+    diskSizeGB: 1
     databaseName: paperclip
     user: paperclip
     region: frankfurt
