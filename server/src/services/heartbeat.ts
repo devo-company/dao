@@ -184,6 +184,8 @@ const MAX_RUN_EVENT_PAYLOAD_DEPTH = 6;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = AGENT_DEFAULT_MAX_CONCURRENT_RUNS;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_MIN = 1;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_MAX = 50;
+const HEARTBEAT_RUN_LIST_DEFAULT_LIMIT = 200;
+const HEARTBEAT_RUN_LIST_MAX_LIMIT = 1000;
 const LIVENESS_BOOKKEEPING_ACTIVITY_ACTIONS = [
   "environment.lease_acquired",
   "environment.lease_released",
@@ -9459,6 +9461,9 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
   return {
     list: async (companyId: string, agentId?: string, limit?: number) => {
       const safeForLegacyEncoding = await hasUnsafeTextProjectionDatabase();
+      const effectiveLimit = Number.isFinite(limit)
+        ? Math.max(1, Math.min(HEARTBEAT_RUN_LIST_MAX_LIMIT, Math.trunc(Number(limit))))
+        : HEARTBEAT_RUN_LIST_DEFAULT_LIMIT;
       const query = db
         .select(
           safeForLegacyEncoding
@@ -9481,7 +9486,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
         )
         .orderBy(desc(heartbeatRuns.createdAt));
 
-      const rows = limit ? await query.limit(limit) : await query;
+      const rows = await query.limit(effectiveLimit);
       return rows.map((row) => {
         const {
           contextIssueId,

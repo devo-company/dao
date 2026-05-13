@@ -101,6 +101,46 @@ describeEmbeddedPostgres("heartbeat list", () => {
     }
   });
 
+  it("defaults list calls to the latest 200 runs", async () => {
+    const companyId = randomUUID();
+    const agentId = randomUUID();
+    const runIds = Array.from({ length: 205 }, () => randomUUID());
+
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(agents).values({
+      id: agentId,
+      companyId,
+      name: "CodexCoder",
+      role: "engineer",
+      status: "idle",
+      adapterType: "codex_local",
+      adapterConfig: {},
+      runtimeConfig: {},
+      permissions: {},
+    });
+
+    await db.insert(heartbeatRuns).values(runIds.map((id, index) => ({
+      id,
+      companyId,
+      agentId,
+      invocationSource: "assignment",
+      status: "succeeded",
+      createdAt: new Date(Date.UTC(2026, 3, 18, 12, 0, index)),
+    })));
+
+    const runs = await heartbeatService(db).list(companyId);
+
+    expect(runs).toHaveLength(200);
+    expect(runs[0]?.id).toBe(runIds[204]);
+    expect(runs.at(-1)?.id).toBe(runIds[5]);
+  });
+
   it("returns small result json payloads unchanged from getRun", async () => {
     const companyId = randomUUID();
     const agentId = randomUUID();
