@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import {
   DEFAULT_ISSUE_GRAPH_LIVENESS_AUTO_RECOVERY_LOOKBACK_HOURS,
@@ -51,6 +51,11 @@ export const ACTIVE_RUN_OUTPUT_CONTINUE_REARM_MS = 30 * 60 * 1000;
 const ACTIVE_RUN_OUTPUT_EVIDENCE_TAIL_BYTES = 8 * 1024;
 const STRANDED_ISSUE_RECOVERY_ORIGIN_KIND = RECOVERY_ORIGIN_KINDS.strandedIssueRecovery;
 const STALE_ACTIVE_RUN_EVALUATION_ORIGIN_KIND = RECOVERY_ORIGIN_KINDS.staleActiveRunEvaluation;
+const TERMINAL_RECOVERY_ORIGIN_KINDS = [
+  RECOVERY_ORIGIN_KINDS.issueGraphLivenessEscalation,
+  RECOVERY_ORIGIN_KINDS.strandedIssueRecovery,
+  RECOVERY_ORIGIN_KINDS.staleActiveRunEvaluation,
+] as const;
 const DEFERRED_WAKE_CONTEXT_KEY = "_paperclipWakeContext";
 
 type RecoveryWakeupOptions = {
@@ -78,6 +83,11 @@ type WatchdogDecisionActor =
   | { type: "board"; userId?: string | null; runId?: string | null }
   | { type: "agent"; agentId?: string | null; runId?: string | null }
   | { type: "none" };
+
+function isTerminalRecoveryOriginKind(originKind: string | null | undefined) {
+  return typeof originKind === "string" &&
+    (TERMINAL_RECOVERY_ORIGIN_KINDS as readonly string[]).includes(originKind);
+}
 
 export type RunOutputSilenceSummary = {
   lastOutputAt: Date | null;
@@ -1257,6 +1267,8 @@ export function recoveryService(db: Db, deps: { enqueueWakeup: RecoveryWakeup })
     latestRun: LatestIssueRun;
     previousStatus: "todo" | "in_progress";
   }) {
+    if (isTerminalRecoveryOriginKind(input.issue.originKind)) return null;
+
     const existing = await findOpenStrandedIssueRecoveryIssue(input.issue.companyId, input.issue.id);
     if (existing) return existing;
 
@@ -1421,6 +1433,7 @@ export function recoveryService(db: Db, deps: { enqueueWakeup: RecoveryWakeup })
           isNull(issues.assigneeUserId),
           inArray(issues.status, ["todo", "in_progress"]),
           sql`${issues.assigneeAgentId} is not null`,
+          or(isNull(issues.originKind), notInArray(issues.originKind, [...TERMINAL_RECOVERY_ORIGIN_KINDS])),
         ),
       );
 
@@ -1434,6 +1447,11 @@ export function recoveryService(db: Db, deps: { enqueueWakeup: RecoveryWakeup })
     };
 
     for (const issue of candidates) {
+      if (isTerminalRecoveryOriginKind(issue.originKind)) {
+        result.skipped += 1;
+        continue;
+      }
+
       const agentId = issue.assigneeAgentId;
       if (!agentId) {
         result.skipped += 1;

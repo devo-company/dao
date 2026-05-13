@@ -468,6 +468,8 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     retryReason?: "assignment_recovery" | "issue_continuation_needed" | null;
     assignToUser?: boolean;
     activePauseHold?: boolean;
+    originKind?: string | null;
+    originId?: string | null;
   }) {
     const companyId = randomUUID();
     const agentId = randomUUID();
@@ -558,6 +560,8 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
         assigneeUserId: input.assignToUser ? "user-1" : null,
         checkoutRunId: input.status === "in_progress" ? runId : null,
         executionRunId: null,
+        ...(input.originKind ? { originKind: input.originKind } : {}),
+        ...(input.originId !== undefined ? { originId: input.originId } : {}),
         issueNumber: input.activePauseHold ? 2 : 1,
         identifier: `${issuePrefix}-${input.activePauseHold ? 2 : 1}`,
         startedAt: input.status === "in_progress" ? now : null,
@@ -1133,6 +1137,47 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(comments[0]?.body).toContain("retried dispatch");
     expect(comments[0]?.body).toContain("Latest retry failure: `process_lost` - run failed before issue advanced.");
     expect(comments[0]?.body).toContain(`Recovery issue: [${recovery.identifier}]`);
+  });
+
+  it("does not recursively recover a stranded recovery issue", async () => {
+    const sourceIssueId = randomUUID();
+    const { companyId, agentId, issueId, runId } = await seedStrandedIssueFixture({
+      status: "todo",
+      runStatus: "failed",
+      retryReason: "assignment_recovery",
+      originKind: "stranded_issue_recovery",
+      originId: sourceIssueId,
+    });
+    const heartbeat = heartbeatService(db);
+
+    const result = await heartbeat.reconcileStrandedAssignedIssues();
+
+    expect(result.dispatchRequeued).toBe(0);
+    expect(result.continuationRequeued).toBe(0);
+    expect(result.escalated).toBe(0);
+    expect(result.issueIds).toEqual([]);
+
+    const recoveryIssue = await db.select().from(issues).where(eq(issues.id, issueId)).then((rows) => rows[0] ?? null);
+    expect(recoveryIssue).toMatchObject({
+      status: "todo",
+      originKind: "stranded_issue_recovery",
+      originId: sourceIssueId,
+    });
+
+    const childRecoveries = await db
+      .select()
+      .from(issues)
+      .where(
+        and(
+          eq(issues.companyId, companyId),
+          eq(issues.originKind, "stranded_issue_recovery"),
+          eq(issues.originId, issueId),
+        ),
+      );
+    expect(childRecoveries).toHaveLength(0);
+
+    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, agentId));
+    expect(runs.map((run) => run.id)).toEqual([runId]);
   });
 
   it("assigns open unassigned blockers back to their creator agent", async () => {

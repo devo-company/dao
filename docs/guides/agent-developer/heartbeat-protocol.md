@@ -125,4 +125,5 @@ Paperclip records run liveness as metadata on heartbeat runs. It is not an issue
 - `continuationAttempt` counts semantic liveness continuations for a source run chain. It is separate from process recovery, queued wake delivery, adapter session resume, and other operational retries.
 - Liveness continuation wake prompts include the attempt, source run, liveness state, liveness reason, and the instruction for the next heartbeat.
 - Continuations do not mark the issue `blocked` or `done`. If automatic continuations are exhausted, Paperclip leaves an audit comment so a human or manager can clarify, block, or assign follow-up work.
+- Paperclip-created recovery or escalation issues are terminal manual artifacts. If one of those issues stalls, Paperclip does not create another recovery issue for it; a manager or operator must fix the runtime, reassign it, or close it with the manual resolution.
 - Workspace provisioning alone is not treated as concrete task progress. Durable progress should appear as tool/action events, issue comments, document or work-product revisions, activity log entries, commits, or tests.
