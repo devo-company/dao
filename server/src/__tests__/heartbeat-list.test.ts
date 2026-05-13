@@ -141,6 +141,64 @@ describeEmbeddedPostgres("heartbeat list", () => {
     expect(runs.at(-1)?.id).toBe(runIds[5]);
   });
 
+  it("uses run id as a deterministic newest-run tiebreaker", async () => {
+    const companyId = randomUUID();
+    const agentId = randomUUID();
+    const olderRunId = "11111111-1111-4111-8111-111111111111";
+    const lowerTieRunId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const higherTieRunId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(agents).values({
+      id: agentId,
+      companyId,
+      name: "CodexCoder",
+      role: "engineer",
+      status: "idle",
+      adapterType: "codex_local",
+      adapterConfig: {},
+      runtimeConfig: {},
+      permissions: {},
+    });
+
+    await db.insert(heartbeatRuns).values([
+      {
+        id: olderRunId,
+        companyId,
+        agentId,
+        invocationSource: "assignment",
+        status: "succeeded",
+        createdAt: new Date("2026-04-18T11:59:59.000Z"),
+      },
+      {
+        id: lowerTieRunId,
+        companyId,
+        agentId,
+        invocationSource: "assignment",
+        status: "succeeded",
+        createdAt: new Date("2026-04-18T12:00:00.000Z"),
+      },
+      {
+        id: higherTieRunId,
+        companyId,
+        agentId,
+        invocationSource: "assignment",
+        status: "succeeded",
+        createdAt: new Date("2026-04-18T12:00:00.000Z"),
+      },
+    ]);
+
+    const runs = await heartbeatService(db).list(companyId);
+
+    expect(runs.map((run) => run.id)).toEqual([higherTieRunId, lowerTieRunId, olderRunId]);
+  });
+
   it("returns small result json payloads unchanged from getRun", async () => {
     const companyId = randomUUID();
     const agentId = randomUUID();

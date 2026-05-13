@@ -9484,7 +9484,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
             ? and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, agentId))
             : eq(heartbeatRuns.companyId, companyId),
         )
-        .orderBy(desc(heartbeatRuns.createdAt));
+        .orderBy(desc(heartbeatRuns.createdAt), desc(heartbeatRuns.id));
 
       const rows = await query.limit(effectiveLimit);
       return rows.map((row) => {
