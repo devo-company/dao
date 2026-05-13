@@ -5,6 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   applyPaperclipWorkspaceEnv,
+  applyAgentGithubTokenSelection,
   appendWithByteCap,
   buildInvocationEnvForLogs,
   DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
@@ -61,6 +62,57 @@ describe("buildInvocationEnvForLogs", () => {
     expect(loggedEnv.PAPERCLIP_RESOLVED_COMMAND).toBe(
       "env OPENAI_API_KEY=***REDACTED*** custom-acp --token ***REDACTED***",
     );
+  });
+});
+
+describe("applyAgentGithubTokenSelection", () => {
+  it("uses the Codex token source and masks agent-specific source variables", () => {
+    const env: Record<string, string> = {
+      GH_TOKEN: "legacy",
+      GH_TOKEN_CODEX: "codex-token",
+      GH_TOKEN_CLAUDE: "claude-token",
+      SAFE_VALUE: "visible",
+    };
+
+    applyAgentGithubTokenSelection(env, "codex", {});
+
+    expect(env).toMatchObject({
+      GH_TOKEN: "codex-token",
+      GH_TOKEN_CODEX: "",
+      GH_TOKEN_CLAUDE: "",
+      SAFE_VALUE: "visible",
+    });
+  });
+
+  it("uses the Claude token source from inherited env when config does not provide one", () => {
+    const env: Record<string, string> = {
+      SAFE_VALUE: "visible",
+    };
+
+    applyAgentGithubTokenSelection(env, "claude", {
+      GH_TOKEN_CODEX: "codex-token",
+      GITHUB_TOKEN_CLAUDE: "claude-token",
+    });
+
+    expect(env.GH_TOKEN).toBe("claude-token");
+    expect(env.SAFE_VALUE).toBe("visible");
+    expect(env.GH_TOKEN_CODEX).toBe("");
+    expect(env.GITHUB_TOKEN_CLAUDE).toBe("");
+  });
+
+  it("preserves legacy GH_TOKEN fallback when no family-specific source is configured", () => {
+    const env: Record<string, string> = {
+      GH_TOKEN: "legacy",
+      GH_TOKEN_CODEX: "",
+    };
+
+    applyAgentGithubTokenSelection(env, "codex", {
+      GH_TOKEN_CLAUDE: "claude-token",
+    });
+
+    expect(env.GH_TOKEN).toBe("legacy");
+    expect(env.GH_TOKEN_CODEX).toBe("");
+    expect(env.GH_TOKEN_CLAUDE).toBe("");
   });
 });
 

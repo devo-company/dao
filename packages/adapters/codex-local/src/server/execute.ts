@@ -23,6 +23,7 @@ import {
   asString,
   asNumber,
   parseObject,
+  applyAgentGithubTokenSelection,
   buildPaperclipEnv,
   buildInvocationEnvForLogs,
   ensureAbsoluteDirectory,
@@ -499,6 +500,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       Object.assign(env, paperclipBridge.env);
     }
   }
+  applyAgentGithubTokenSelection(env, "codex", process.env);
   const effectiveEnv = Object.fromEntries(
     Object.entries({ ...process.env, ...env }).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",

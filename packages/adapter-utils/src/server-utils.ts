@@ -235,6 +235,55 @@ export function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
+export type AgentGithubTokenFamily = "codex" | "claude";
+
+type EnvValueMap = Record<string, string | undefined>;
+
+const AGENT_GITHUB_TOKEN_SOURCE_KEYS: Record<AgentGithubTokenFamily, readonly string[]> = {
+  codex: ["GH_TOKEN_CODEX", "GITHUB_TOKEN_CODEX", "GITHUB_PAT_CODEX"],
+  claude: ["GH_TOKEN_CLAUDE", "GITHUB_TOKEN_CLAUDE", "GITHUB_PAT_CLAUDE"],
+};
+
+const ALL_AGENT_GITHUB_TOKEN_SOURCE_KEYS = Array.from(
+  new Set(Object.values(AGENT_GITHUB_TOKEN_SOURCE_KEYS).flat()),
+);
+
+function firstNonEmptyEnvValue(
+  keys: readonly string[],
+  envs: readonly EnvValueMap[],
+): string | null {
+  for (const env of envs) {
+    for (const key of keys) {
+      const value = env[key];
+      if (typeof value === "string" && value.trim().length > 0) {
+        return value;
+      }
+    }
+  }
+  return null;
+}
+
+export function applyAgentGithubTokenSelection(
+  env: Record<string, string>,
+  family: AgentGithubTokenFamily,
+  inheritedEnv: EnvValueMap = process.env,
+): Record<string, string> {
+  const token = firstNonEmptyEnvValue(
+    AGENT_GITHUB_TOKEN_SOURCE_KEYS[family],
+    [env, inheritedEnv],
+  );
+
+  if (token) {
+    env.GH_TOKEN = token;
+  }
+
+  for (const key of ALL_AGENT_GITHUB_TOKEN_SOURCE_KEYS) {
+    env[key] = "";
+  }
+
+  return env;
+}
+
 export function parseJson(value: string): Record<string, unknown> | null {
   try {
     return JSON.parse(value) as Record<string, unknown>;

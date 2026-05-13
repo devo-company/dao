@@ -29,6 +29,7 @@ import {
   asStringArray,
   parseObject,
   parseJson,
+  applyAgentGithubTokenSelection,
   applyPaperclipWorkspaceEnv,
   buildPaperclipEnv,
   readPaperclipRuntimeSkillEntries,
@@ -260,6 +261,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
     env.PAPERCLIP_API_KEY = authToken;
   }
 
+  applyAgentGithubTokenSelection(env, "claude", process.env);
   const runtimeEnv = Object.fromEntries(
     Object.entries(ensurePathInEnv({ ...process.env, ...env })).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",

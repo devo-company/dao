@@ -51,6 +51,15 @@ Project env applies to every issue run in that project. When a project env key
 matches an agent env key, the project value wins before Paperclip injects its
 own `PAPERCLIP_*` runtime variables.
 
+GitHub tokens can be bound by model family instead of sharing one credential
+across every local coding adapter. Bind Codex/OpenAI credentials as
+`GH_TOKEN_CODEX`, `GITHUB_TOKEN_CODEX`, or `GITHUB_PAT_CODEX`; bind
+Claude/Anthropic credentials as `GH_TOKEN_CLAUDE`, `GITHUB_TOKEN_CLAUDE`, or
+`GITHUB_PAT_CLAUDE`. The Codex and Claude local adapters select the matching
+family token at launch, expose it to the child process as `GH_TOKEN`, and mask
+the family-specific source keys from the child environment. A legacy `GH_TOKEN`
+binding remains a fallback only when no matching family-specific token exists.
+
 ## Default Provider: `local_encrypted`
 
 Secrets are encrypted with a local master key stored at:
